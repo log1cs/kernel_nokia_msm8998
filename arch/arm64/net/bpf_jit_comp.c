@@ -150,7 +150,7 @@ static inline int epilogue_offset(const struct jit_ctx *ctx)
 
 #define PROLOGUE_OFFSET 8
 
-static int build_prologue(struct jit_ctx *ctx)
+static int build_prologue(struct jit_ctx *ctx, bool ebpf_from_cbpf)
 {
 	const u8 r6 = bpf2a64[BPF_REG_6];
 	const u8 r7 = bpf2a64[BPF_REG_7];
@@ -196,8 +196,9 @@ static int build_prologue(struct jit_ctx *ctx)
 	/* Set up BPF prog stack base register */
 	emit(A64_MOV(1, fp, A64_SP), ctx);
 
-	/* Initialize tail_call_cnt */
-	emit(A64_MOVZ(1, tcc, 0, 0), ctx);
+	if (!ebpf_from_cbpf) {
+		/* Initialize tail_call_cnt */
+		emit(A64_MOVZ(1, tcc, 0, 0), ctx);
 
 	/* Set up function call stack */
 	emit(A64_SUB_I(1, A64_SP, A64_SP, STACK_SIZE), ctx);
@@ -206,7 +207,8 @@ static int build_prologue(struct jit_ctx *ctx)
 	if (cur_offset != PROLOGUE_OFFSET) {
 		pr_err_once("PROLOGUE_OFFSET = %d, expected %d!\n",
 			    cur_offset, PROLOGUE_OFFSET);
-		return -1;
+			return -1;
+		}
 	}
 	return 0;
 }
@@ -823,6 +825,7 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 	struct bpf_prog *tmp, *orig_prog = prog;
 	struct bpf_binary_header *header;
 	bool tmp_blinded = false;
+	bool was_classic = bpf_prog_was_classic(prog);
 	struct jit_ctx ctx;
 	int image_size;
 	u8 *image_ptr;
@@ -858,7 +861,7 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 		goto out_off;
 	}
 
-	if (build_prologue(&ctx)) {
+	if (build_prologue(&ctx, was_classic)) {
 		prog = orig_prog;
 		goto out_off;
 	}
@@ -880,7 +883,7 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 	ctx.image = (u32 *)image_ptr;
 	ctx.idx = 0;
 
-	build_prologue(&ctx);
+	build_prologue(&ctx, was_classic);
 
 	if (build_body(&ctx)) {
 		bpf_jit_binary_free(header);
