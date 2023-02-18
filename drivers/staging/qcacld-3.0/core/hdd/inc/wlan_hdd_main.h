@@ -68,10 +68,6 @@
  * works properly on all architectures.
  *
  */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
-static inline bool in_compat_syscall(void) { return is_compat_task(); }
-#endif
-
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)) || \
 	defined(CFG80211_REMOVE_IEEE80211_BACKPORT)
 #define HDD_NL80211_BAND_2GHZ   NL80211_BAND_2GHZ
